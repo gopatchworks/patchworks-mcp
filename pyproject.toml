@@ -1,0 +1,10 @@
+[project]
+name = "patchworks-mcp"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp[cli]>=0.1.0",
+  "pydantic>=2.7",
+  "python-dotenv>=1.0",
+  "requests>=2.32"
+]
