@@ -1,9 +1,9 @@
 Patchworks MCP --- Local Setup Guide
 ==================================
 
-With Patchworks MCP you can connect your integration platform directly to an AI assistant (Claude, Gemini, ChatGPT, etc.) and control it conversationally.
+With Patchworks MCP you can connect the Patchworks iPaaS directly to an AI assistant (Claude, Gemini, ChatGPT, etc.) and control it conversationally.
 
-This guide shows how to set up the MCP server locally on your machine.
+This guide shows how to set up the MCP server locally on your machine with some pre-built tools.
 
 * * * * *
 
