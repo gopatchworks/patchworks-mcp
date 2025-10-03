@@ -66,7 +66,7 @@ Copy the example file and edit with your real values:
 
 `cd ~/patchworks-mcp cp .env.example .env nano .env`
 
-Update PATCHWORKS_TOKEN with your API KEY ( [How to get API KEY](https://doc.wearepatchworks.com/product-documentation/developer-hub/patchworks-api/core-api-authentication/api-keys "https://doc.wearepatchworks.com/product-documentation/developer-hub/patchworks-api/core-api-authentication/api-keys") ):
+Update PATCHWORKS_TOKEN with your API KEY ( [How to get your API KEY](https://doc.wearepatchworks.com/product-documentation/developer-hub/patchworks-api/core-api-authentication/api-keys "https://doc.wearepatchworks.com/product-documentation/developer-hub/patchworks-api/core-api-authentication/api-keys") ):
 
 `# Core read/triage API PATCHWORKS_CORE_API=https://core.wearepatchworks.com/api/v1 PATCHWORKS_BASE_URL=https://core.wearepatchworks.com/api/v1 # Start service to run flows PATCHWORKS_START_API=https://start.wearepatchworks.com/api/v1 # Auth PATCHWORKS_TOKEN=XXXXXXXXXXXXXX # Default timeout for HTTP requests PATCHWORKS_TIMEOUT_SECONDS=20`
 
