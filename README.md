@@ -121,6 +121,6 @@ Step 4 --- Test it
 
 Open Claude and type:
 
-> "Get me a list of my Flows"
+> "I’d like a full list of my flows, please."
 
 Claude will prompt to approve a tool call, then the Patchworks MCP server will return live data from your account.
