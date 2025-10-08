@@ -54,6 +54,15 @@ class TriageLatestFailuresArgs(BaseModel):
     limit: int = Field(20, ge=1, le=200, description="How many failed runs to summarise")
     per_run_log_limit: int = Field(50, ge=1, le=500, description="Log entries per run to fetch")
 
+class ListDataPoolsArgs(BaseModel):
+    page: int = Field(1, ge=1)
+    per_page: int = Field(50, ge=1, le=200)
+
+class GetDedupedDataArgs(BaseModel):
+    pool_id: str
+    page: int = Field(1, ge=1)
+    per_page: int = Field(50, ge=1, le=200)  
+
 # ------------------------------------------------------------------------------
 # Tools
 # ------------------------------------------------------------------------------
@@ -112,6 +121,16 @@ def download_payload(args: DownloadPayloadArgs) -> Any:
 def start_flow(args: StartFlowArgs) -> Any:
     """Trigger a flow run via the Start service (/flows/{id}/start)."""
     return pw.start_flow(flow_id=args.flow_id, payload=args.payload)
+
+@mcp.tool()
+def list_data_pools(args: ListDataPoolsArgs) -> Any:
+    """List all data/dedupe pools."""
+    return pw.list_data_pools(page=args.page, per_page=args.per_page)
+
+@mcp.tool()
+def get_deduped_data(args: GetDedupedDataArgs) -> Any:
+    """Retrieve deduplicated data for a specific pool."""
+    return pw.get_deduped_data(pool_id=args.pool_id, page=args.page, per_page=args.per_page)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
