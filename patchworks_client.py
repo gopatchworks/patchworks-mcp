@@ -155,6 +155,29 @@ def start_flow(flow_id: str, payload: Optional[Dict[str, Any]] = None) -> Any:
     return _handle(r)
 
 # ------------------------------------------------------------------------------
+# Data Pools (Core API)
+# ------------------------------------------------------------------------------
+
+def list_data_pools(page: int = 1, per_page: int = 50) -> Any:
+    """
+    GET /data-pool/
+    Returns a paginated list of data/dedupe pools.
+    """
+    params: Dict[str, Any] = {"page": page, "per_page": per_page}
+    r = session.get(_url(CORE_API, "/data-pool/"), params=params, timeout=TIMEOUT)
+    return _handle(r)
+
+def get_deduped_data(pool_id: str, page: int = 1, per_page: int = 50) -> Any:
+    """
+    GET /data-pool/{id}/deduped-data
+    Returns deduplicated data rows within the specified pool.
+    """
+    params: Dict[str, Any] = {"page": page, "per_page": per_page}
+    r = session.get(_url(CORE_API, f"/data-pool/{pool_id}/deduped-data"), params=params, timeout=TIMEOUT)
+    return _handle(r)
+
+
+# ------------------------------------------------------------------------------
 # Failure triage helpers
 # ------------------------------------------------------------------------------
 
