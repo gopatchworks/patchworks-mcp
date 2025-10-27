@@ -3,8 +3,10 @@ import sys, logging, base64
 from typing import Any, Optional, Dict
 from pydantic import BaseModel, Field
 from mcp.server.fastmcp import FastMCP
+import re
 
 import patchworks_client as pw
+from datetime import datetime
 
 # Log to STDERR only (stdio transport cannot receive stdout noise)
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
@@ -62,6 +64,143 @@ class GetDedupedDataArgs(BaseModel):
     pool_id: str
     page: int = Field(1, ge=1)
     per_page: int = Field(50, ge=1, le=200)  
+
+class CreateProcessFlowByPromptArgs(BaseModel):
+    prompt: str = Field(..., description="e.g. 'create a process flow for Shopify to NetSuite orders'")
+    priority: int = Field(3, ge=1, le=5, description="Flow priority (1 highest)")
+    schedule_cron: Optional[str] = Field("0 * * * *", description="Cron schedule; set None to omit")
+    enable: bool = Field(False, description="Whether to enable on import")
+
+class CreateProcessFlowFromJsonArgs(BaseModel):
+    body: Dict[str, Any] = Field(..., description="Complete /flows/import JSON to send as-is")
+
+
+ENTITY_GUESSES = [
+    "orders","order","customers","customer","products","inventory","shipments","invoices","payments"
+]
+
+def _guess_parts_from_prompt(prompt: str) -> Dict[str, str]:
+    p = prompt.strip().lower()
+    m = re.search(r"for\s+(.+?)\s+to\s+(.+?)\s+([a-zA-Z\-_/ ]+)$", p) or         re.search(r"(?:create|build).*\bflow\b.*?for\s+(.+?)\s+to\s+(.+?)\s+([a-zA-Z\-_/ ]+)$", p)
+    src = dst = ent = None
+    if m:
+        src, dst, ent = [x.strip() for x in m.groups()]
+    else:
+        m2 = re.search(r"for\s+(.+?)\s+to\s+(.+?)$", p) or re.search(r"(.+?)\s+to\s+(.+?)$", p)
+        if m2:
+            src, dst = [x.strip() for x in m2.groups()]
+    def nice(s): return (s or "").strip().title()
+    src, dst = nice(src), nice(dst)
+    ent = (ent or "").strip().lower()
+    for guess in ENTITY_GUESSES:
+        if guess in ent:
+            ent = "orders" if "order" in guess else guess.rstrip("s")+"s"
+            break
+    ent = ent or "orders"
+    return {"source": src or "System A", "destination": dst or "System B", "entity": ent}
+
+def _build_generic_import_json(src: str, dst: str, entity: str, *, priority: int, schedule_cron: str | None, enable: bool) -> Dict[str, Any]:
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    flow_name = f"{src} > {dst} {entity.title()} - {now}"
+    steps = [
+        {
+            "name": "Try/Catch",
+            "microservice": "try-catch",
+            "config": {"action": "partial_success"},
+            "routes": [
+                {"name": "Try", "first_step": "Source Connector"},
+                {"name": "Catch"}
+            ]
+        },
+        {
+            "name": "Source Connector",
+            "microservice": "connector",
+            "config": {
+                "timeout": 30,
+                "wrapping_behaviour": "Raw",
+                "allow_unsuccessful_statuses": False
+            },
+            "endpoint": {
+                "name": f"{src} - Retrieve {entity}",
+                "direction": "Receive",
+                "http_method": "GET",
+                "data_type": "json"
+            }
+        },
+        {
+            "name": "Flow Control",
+            "microservice": "batch",
+            "config": {"path": "*", "size": 1}
+        },
+        {
+            "name": "Map",
+            "microservice": "map",
+            "config": {}
+        },
+        {
+            "name": "Destination Connector",
+            "microservice": "connector",
+            "config": {
+                "timeout": 30,
+                "wrapping_behaviour": "First",
+                "allow_unsuccessful_statuses": True
+            },
+            "endpoint": {
+                "name": f"{dst} - Upsert {entity}",
+                "direction": "Send",
+                "http_method": "POST",
+                "data_type": "json"
+            }
+        }
+    ]
+
+    schedules = []
+    if schedule_cron:
+        schedules.append({"cron_string": schedule_cron})
+
+    flow = {
+        "name": flow_name,
+        "description": f"{src} → {dst} {entity} (generated)",
+        "is_enabled": bool(enable),
+        "priority": priority,
+        "versions": [
+            {
+                "flow_name": flow_name,
+                "flow_priority": priority,
+                "status": "Draft",
+                "is_deployed": False,
+                "steps": steps,
+                "schedules": schedules
+            }
+        ]
+    }
+
+    systems = [
+        {
+            "system": {
+                "name": src,
+                "label": f"{src} (placeholder)",
+                "protocol": "HTTP"
+            }
+        },
+        {
+            "system": {
+                "name": dst,
+                "label": f"{dst} (placeholder)",
+                "protocol": "HTTP"
+            }
+        }
+    ]
+
+    return {
+        "metadata": {
+            "company_name": "Generated by MCP",
+            "flow_name": flow_name,
+            "exported_at": now
+        },
+        "flow": flow,
+        "systems": systems
+    }    
 
 # ------------------------------------------------------------------------------
 # Tools
@@ -131,6 +270,29 @@ def list_data_pools(args: ListDataPoolsArgs) -> Any:
 def get_deduped_data(args: GetDedupedDataArgs) -> Any:
     """Retrieve deduplicated data for a specific pool."""
     return pw.get_deduped_data(pool_id=args.pool_id, page=args.page, per_page=args.per_page)
+
+@mcp.tool()
+def create_process_flow_from_prompt(args: CreateProcessFlowByPromptArgs) -> Any:
+    """
+    Build a generic flow from a natural-language prompt and import it.
+    Produces a Try/Catch → Source Connector → Batch → Map → Destination Connector skeleton.
+    """
+    parts = _guess_parts_from_prompt(args.prompt)
+    body = _build_generic_import_json(
+        parts["source"], parts["destination"], parts["entity"],
+        priority=args.priority,
+        schedule_cron=args.schedule_cron,
+        enable=args.enable
+    )
+    return pw.import_flow(body)
+
+@mcp.tool()
+def create_process_flow_from_json(args: CreateProcessFlowFromJsonArgs) -> Any:
+    """
+    Import a flow with the exact JSON body provided.
+    Useful when you want to post a full export unchanged.
+    """
+    return pw.import_flow(args.body)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
