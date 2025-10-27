@@ -286,3 +286,16 @@ def triage_latest_failures(
         "started_after": started_after,
         "items": results,
     }
+
+# ------------------------------------------------------------------------------
+# Flows: Import (POST /flows/import)
+# ------------------------------------------------------------------------------
+
+def import_flow(payload: Dict[str, Any]) -> Any:
+    """
+    POST /flows/import  (Core API)
+    Body is the full import JSON for a flow+systems bundle.
+    """
+    url = _url(CORE_API, "/flows/import")
+    r = session.post(url, data=json.dumps(payload), timeout=TIMEOUT)
+    return _handle(r)
