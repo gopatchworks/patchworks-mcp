@@ -178,6 +178,62 @@ def get_deduped_data(pool_id: str, page: int = 1, per_page: int = 50) -> Any:
 
 
 # ------------------------------------------------------------------------------
+# Marketplace Apps
+# ------------------------------------------------------------------------------
+
+def get_marketplace_apps(
+    page: int = 1,
+    per_page: int = 50,
+    include: Optional[str] = None,
+    filter_name: Optional[str] = None,
+    filter_allowed: Optional[bool] = None,
+    filter_private: Optional[bool] = None,
+    sort: Optional[str] = None
+) -> Any:
+    """
+    GET /patchworks/marketplace-apps  (Core API)
+    Returns a paginated list of marketplace apps.
+
+    Available filters: id, name, allowed, private, private_or_allowed
+    Available includes: flowTemplates, systemTemplates, scriptTemplates, etc.
+    Available sorts: name, id, created_at
+    """
+    params: Dict[str, Any] = {"page": page, "per_page": per_page}
+
+    if include:
+        params["include"] = include
+    if filter_name:
+        params["filter[name]"] = filter_name
+    if filter_allowed is not None:
+        params["filter[allowed]"] = str(int(filter_allowed))
+    if filter_private is not None:
+        params["filter[private]"] = str(int(filter_private))
+    if sort:
+        params["sort"] = sort
+
+    r = session.get(_url(CORE_API, "/patchworks/marketplace-apps"), params=params, timeout=TIMEOUT)
+    return _handle(r)
+
+def get_marketplace_app(
+    marketplace_app_id: str,
+    include: Optional[str] = None
+) -> Any:
+    """
+    GET /patchworks/marketplace-apps/{id}  (Core API)
+    Returns a specific marketplace app by ID.
+
+    Available includes: flowTemplates, systemTemplates, scriptTemplates, etc.
+    """
+    params: Dict[str, Any] = {}
+
+    if include:
+        params["include"] = include
+
+    r = session.get(_url(CORE_API, f"/patchworks/marketplace-apps/{marketplace_app_id}"), params=params, timeout=TIMEOUT)
+    return _handle(r)
+
+
+# ------------------------------------------------------------------------------
 # Failure triage helpers
 # ------------------------------------------------------------------------------
 

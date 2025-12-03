@@ -1,10 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "patchworks-mcp"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
   "mcp[cli]>=0.1.0",
+  "fastmcp>=1.0.0",
   "pydantic>=2.7",
   "python-dotenv>=1.0",
   "requests>=2.32"
 ]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-mock>=3.12",
+  "pytest-env>=1.0",
+  "requests-mock>=1.11"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["defaults*", "custom*"]
+exclude = ["tests*"]
