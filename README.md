@@ -6,8 +6,7 @@ With Patchworks MCP you can connect the Patchworks iPaaS directly to an AI assis
 This guide shows how to set up the MCP server locally on your machine with some pre-built tools.
 
 Commerce Foundation Support now included
-==================================
-
+-------------------------------------------
 Each Commerce Foundation capability is exposed as an MCP tool.
 
 #### query tools
@@ -19,9 +18,9 @@ Each Commerce Foundation capability is exposed as an MCP tool.
 - Fulfilments  
 - Returns
 
-- Requests are executed via Patchworks flows  
-- Implementations require customers or partners to build their own flows to handle Commerce Foundation requests  
-- Patchworks can provide example and reference flows to accelerate implementation and demonstrate best practice  
+Requests are executed via Patchworks flows  
+Implementations require customers or partners to build their own flows to handle Commerce Foundation requests  
+Patchworks can provide example and reference flows to accelerate implementation and demonstrate best practice  
 
 * * * * *
 
