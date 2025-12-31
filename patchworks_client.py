@@ -154,6 +154,7 @@ def start_flow(flow_id: str, payload: Optional[Dict[str, Any]] = None) -> Any:
     r = session.post(_url(START_API, f"/flows/{flow_id}/start"), data=json.dumps(body), timeout=TIMEOUT)
     return _handle(r)
 
+
 # ------------------------------------------------------------------------------
 # Data Pools (Core API)
 # ------------------------------------------------------------------------------
@@ -299,3 +300,170 @@ def import_flow(payload: Dict[str, Any]) -> Any:
     url = _url(CORE_API, "/flows/import")
     r = session.post(url, data=json.dumps(payload), timeout=TIMEOUT)
     return _handle(r)
+
+
+# ------------------------------------------------------------------------------
+# Commerce Operations Foundation - Query Tools
+# Configure in the callback flow URL for your specific account implementation
+# ------------------------------------------------------------------------------
+
+def get_orders(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)
+    
+def get_customers(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)
+        
+def get_products(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)
+      
+def get_product_variants(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)  
+
+def get_inventory(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "https://callbacks.wearepatchworks.com/api/v1/jim_sandbox/01kae1cxrmdvphywp405v12pfn/2?patchworks_signature=f1pdveppf50prh2makkc5vhyr121wp010wyvcxd01qpp4av1xm4e",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)
+    
+def get_fulfillments(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)      
+    
+def get_returns(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)      
+
+# ------------------------------------------------------------------------------
+# Commerce Operations Foundation - Action Tools
+# Configure in the callback flow URL for your specific account implementation
+# ------------------------------------------------------------------------------
+
+def create_sales_order(inputSchema) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)      
+    
+def update_order(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)      
+
+def cancel_order(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)      
+
+def fulfill_order(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)      
+    
+def create_return(inputSchema: Optional[str] = None) -> Any:
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+
+#   Configure in the callback flow URL here in the quotes under session.post
+    r = session.post(
+        "",
+        data=json.dumps(body),
+        timeout=TIMEOUT
+    )
+    return _handle(r)      
