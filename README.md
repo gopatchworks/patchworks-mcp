@@ -9,14 +9,25 @@ Commerce Foundation Support now included
 -------------------------------------------
 Each Commerce Foundation capability is exposed as an MCP tool.
 
-#### query tools
-- Orders  
-- Customers  
-- Products  
-- Product Variants  
-- Inventory  
-- Fulfilments  
-- Returns
+The server provides the 12 fulfillment operations as per <https://github.com/commerce-operations-foundation/mcp-reference-server/blob/develop/README.md>:
+
+### Action Tools
+
+- `create-sales-order` - Create new orders from any channel
+- `update-order` - Modify order details and line items
+- `cancel-order` - Cancel orders with reason tracking
+- `fulfill-order` - Mark orders as fulfilled and return shipment details
+- `create-return` - Create returns for order items with refund/exchange tracking
+
+### Query Tools
+
+- `get-orders` - Retrieve order information
+- `get-customers` - Get customer details
+- `get-products` - Get product information
+- `get-product-variants` - Retrieve variant-level data
+- `get-inventory` - Check inventory levels
+- `get-fulfillments` - Track fulfillment status
+- `get-returns` - Query return records and status
 
 Requests are executed via Patchworks flows  
 Implementations require customers or partners to build their own flows to handle Commerce Foundation requests  
