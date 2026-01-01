@@ -530,13 +530,13 @@ def get_product_variants(args: GetProductVariantsArgs) -> Any:
 
 class GetInventoryArgs(BaseModel):
     skus: Optional[List[str]] = Field(
-        default=None, 
-        description="Product SKU to get inventory for (required)"
+        default=None,
+        description="Product SKU to get inventory for (optional - if not provided returns all skus, filter by location if provided"
     )
     locationIds: Optional[List[str]] = Field(
-        None, 
-        description="Specific warehouse/location ID (optional - if not provided, returns aggregated inventory)"
-    )
+        None,
+        description="Specific warehouse/location ID (optional - if not provided, returns all skus from all locations, unless sku filter is provided)"
+    ) 
 
 @mcp.tool()
 def get_inventory(args: Optional[GetInventoryArgs] = None) -> Any:
