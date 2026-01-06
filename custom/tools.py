@@ -5,8 +5,7 @@ Guidelines:
 1. All tools must be defined INSIDE the register_custom_tools() function
 2. Use the @mcp.tool() decorator for each tool
 3. Define argument schemas in custom/schemas.py
-4. Import any additional libraries you need at the top
-5. Helper functions should also be defined inside register_custom_tools()
+4. Helper functions should also be defined inside register_custom_tools()
 
 Example structure:
     @mcp.tool()
@@ -21,10 +20,6 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
 
-# from custom.schemas import ExampleToolArgs
-
-
-# Import any additional libraries you need
 # import requests
 # import json
 
@@ -33,7 +28,6 @@ class ExampleToolArgs(BaseModel):
     name: str = Field(..., description="The name parameter")
     count: int = Field(1, ge=1, le=100, description="Count between 1 and 100")
     optional_param: Optional[str] = Field(None, description="An optional parameter")
-
 
 
 def register_custom_tools(mcp: FastMCP):
@@ -49,7 +43,7 @@ def register_custom_tools(mcp: FastMCP):
         mcp._custom_tools_registry = []
 
     # ------------------------------------------------------------------------------
-    # Example Tool (remove or replace with your own)
+    # Example Tool
     # ------------------------------------------------------------------------------
 
     @mcp.tool()
@@ -94,7 +88,7 @@ def register_custom_tools(mcp: FastMCP):
     #     result = do_something(args.param1, args.param2)
     #     return result
     #
-    # # Don't forget to register it!
+    #
     # mcp._custom_tools_registry.append({
     #     "name": "my_custom_tool",
     #     "description": "Description of what your tool does.",
@@ -118,3 +112,5 @@ def register_custom_tools(mcp: FastMCP):
     #     "description": "Tool that uses the helper function.",
     #     "category": "custom"
     # })
+
+    {{REPLACE_ME}}

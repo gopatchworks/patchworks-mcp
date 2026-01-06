@@ -1,12 +1,13 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import base64
 import re
 from datetime import datetime, timezone
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Context
 
 from defaults.schemas import *
 import patchworks_client as pw
+from auth_helper import get_token_from_context
 
 
 def register_default_tools(mcp: FastMCP):
@@ -21,9 +22,10 @@ def register_default_tools(mcp: FastMCP):
     # ------------------------------------------------------------------------------
 
     @mcp.tool()
-    def get_all_flows(args: GetAllFlowsArgs) -> Any:
+    def get_all_flows(args: GetAllFlowsArgs, ctx: Optional[Context] = None) -> Any:
         """List flows from the Core API."""
-        return pw.get_all_flows(page=args.page, per_page=args.per_page, include=args.include)
+        token = get_token_from_context(ctx)
+        return pw.get_all_flows(page=args.page, per_page=args.per_page, include=args.include, token=token)
 
     mcp._default_tools_registry.append({
         "name": "get_all_flows",
@@ -32,8 +34,9 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def get_flow_runs(args: GetFlowRunsArgs) -> Any:
+    def get_flow_runs(args: GetFlowRunsArgs, ctx: Optional[Context] = None) -> Any:
         """Query flow runs (filter by status, started_after; sort; includes)."""
+        token = get_token_from_context(ctx)
         return pw.get_flow_runs(
             status=args.status,
             started_after=args.started_after,
@@ -41,6 +44,7 @@ def register_default_tools(mcp: FastMCP):
             per_page=args.per_page,
             sort=args.sort,
             include=args.include,
+            token=token
         )
 
     mcp._default_tools_registry.append({
@@ -50,8 +54,9 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def get_flow_run_logs(args: GetFlowRunLogsArgs) -> Any:
+    def get_flow_run_logs(args: GetFlowRunLogsArgs, ctx: Optional[Context] = None) -> Any:
         """Retrieve logs for a specific flow run (optionally with payload IDs)."""
+        token = get_token_from_context(ctx)
         return pw.get_flow_run_logs(
             run_id=args.run_id,
             per_page=args.per_page,
@@ -60,6 +65,7 @@ def register_default_tools(mcp: FastMCP):
             include=args.include,
             fields_flowStep=args.fields_flowStep,
             load_payload_ids=args.load_payload_ids,
+            token=token
         )
 
     mcp._default_tools_registry.append({
@@ -69,9 +75,10 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def summarise_failed_run(args: SummariseFailedRunArgs) -> Any:
+    def summarise_failed_run(args: SummariseFailedRunArgs, ctx: Optional[Context] = None) -> Any:
         """Summarise what went wrong in a failed run by inspecting log levels/messages."""
-        return pw.summarise_failed_run(run_id=args.run_id, max_logs=args.max_logs)
+        token = get_token_from_context(ctx)
+        return pw.summarise_failed_run(run_id=args.run_id, max_logs=args.max_logs, token=token)
 
     mcp._default_tools_registry.append({
         "name": "summarise_failed_run",
@@ -80,12 +87,14 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def triage_latest_failures(args: TriageLatestFailuresArgs) -> Any:
+    def triage_latest_failures(args: TriageLatestFailuresArgs, ctx: Optional[Context] = None) -> Any:
         """Fetch recent failed runs and return a compact summary for each."""
+        token = get_token_from_context(ctx)
         return pw.triage_latest_failures(
             started_after=args.started_after,
             limit=args.limit,
             per_run_log_limit=args.per_run_log_limit,
+            token=token
         )
 
     mcp._default_tools_registry.append({
@@ -95,9 +104,10 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def download_payload(args: DownloadPayloadArgs) -> Any:
+    def download_payload(args: DownloadPayloadArgs, ctx: Optional[Context] = None) -> Any:
         """Download payload bytes for a given payload metadata ID (returned as base64)."""
-        ctype, raw = pw.download_payload(args.payload_metadata_id)
+        token = get_token_from_context(ctx)
+        ctype, raw = pw.download_payload(args.payload_metadata_id, token=token)
         return {"content_type": ctype, "bytes_base64": base64.b64encode(raw).decode("ascii")}
 
     mcp._default_tools_registry.append({
@@ -107,9 +117,10 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def start_flow(args: StartFlowArgs) -> Any:
+    def start_flow(args: StartFlowArgs, ctx: Optional[Context] = None) -> Any:
         """Trigger a flow run via the Start service (/flows/{id}/start)."""
-        return pw.start_flow(flow_id=args.flow_id, payload=args.payload)
+        token = get_token_from_context(ctx)
+        return pw.start_flow(flow_id=args.flow_id, payload=args.payload, token=token)
 
     mcp._default_tools_registry.append({
         "name": "start_flow",
@@ -118,9 +129,10 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def list_data_pools(args: ListDataPoolsArgs) -> Any:
+    def list_data_pools(args: ListDataPoolsArgs, ctx: Optional[Context] = None) -> Any:
         """List all data/dedupe pools."""
-        return pw.list_data_pools(page=args.page, per_page=args.per_page)
+        token = get_token_from_context(ctx)
+        return pw.list_data_pools(page=args.page, per_page=args.per_page, token=token)
 
     mcp._default_tools_registry.append({
         "name": "list_data_pools",
@@ -129,9 +141,10 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def get_deduped_data(args: GetDedupedDataArgs) -> Any:
+    def get_deduped_data(args: GetDedupedDataArgs, ctx: Optional[Context] = None) -> Any:
         """Retrieve deduplicated data for a specific pool."""
-        return pw.get_deduped_data(pool_id=args.pool_id, page=args.page, per_page=args.per_page)
+        token = get_token_from_context(ctx)
+        return pw.get_deduped_data(pool_id=args.pool_id, page=args.page, per_page=args.per_page, token=token)
 
     mcp._default_tools_registry.append({
         "name": "get_deduped_data",
@@ -140,8 +153,9 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def get_marketplace_apps(args: GetMarketplaceAppsArgs) -> Any:
+    def get_marketplace_apps(args: GetMarketplaceAppsArgs, ctx: Optional[Context] = None) -> Any:
         """List marketplace apps from the Patchworks marketplace."""
+        token = get_token_from_context(ctx)
         return pw.get_marketplace_apps(
             page=args.page,
             per_page=args.per_page,
@@ -149,7 +163,8 @@ def register_default_tools(mcp: FastMCP):
             filter_name=args.filter_name,
             filter_allowed=args.filter_allowed,
             filter_private=args.filter_private,
-            sort=args.sort
+            sort=args.sort,
+            token=token
         )
 
     mcp._default_tools_registry.append({
@@ -159,11 +174,13 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def get_marketplace_app(args: GetMarketplaceAppArgs) -> Any:
+    def get_marketplace_app(args: GetMarketplaceAppArgs, ctx: Optional[Context] = None) -> Any:
         """Get details of a specific marketplace app by ID."""
+        token = get_token_from_context(ctx)
         return pw.get_marketplace_app(
             marketplace_app_id=args.marketplace_app_id,
-            include=args.include
+            include=args.include,
+            token=token
         )
 
     mcp._default_tools_registry.append({
@@ -302,11 +319,12 @@ def register_default_tools(mcp: FastMCP):
         }
 
     @mcp.tool()
-    def create_process_flow_from_prompt(args: CreateProcessFlowByPromptArgs) -> Any:
+    def create_process_flow_from_prompt(args: CreateProcessFlowByPromptArgs, ctx: Optional[Context] = None) -> Any:
         """
         Build a generic flow from a natural-language prompt and import it.
         Produces a Try/Catch → Source Connector → Batch → Map → Destination Connector skeleton.
         """
+        token = get_token_from_context(ctx)
         parts = _guess_parts_from_prompt(args.prompt)
         body = _build_generic_import_json(
             parts["source"], parts["destination"], parts["entity"],
@@ -314,7 +332,7 @@ def register_default_tools(mcp: FastMCP):
             schedule_cron=args.schedule_cron,
             enable=args.enable
         )
-        return pw.import_flow(body)
+        return pw.import_flow(body, token=token)
 
     mcp._default_tools_registry.append({
         "name": "create_process_flow_from_prompt",
@@ -323,12 +341,13 @@ def register_default_tools(mcp: FastMCP):
     })
 
     @mcp.tool()
-    def create_process_flow_from_json(args: CreateProcessFlowFromJsonArgs) -> Any:
+    def create_process_flow_from_json(args: CreateProcessFlowFromJsonArgs, ctx: Optional[Context] = None) -> Any:
         """
         Import a flow with the exact JSON body provided.
         Useful when you want to post a full export unchanged.
         """
-        return pw.import_flow(args.body)
+        token = get_token_from_context(ctx)
+        return pw.import_flow(args.body, token=token)
 
     mcp._default_tools_registry.append({
         "name": "create_process_flow_from_json",

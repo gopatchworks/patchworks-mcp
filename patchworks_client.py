@@ -52,13 +52,30 @@ session.headers.update({
 def _url(root: str, path: str) -> str:
     return f"{root}/{path.lstrip('/')}"
 
-def _handle(r: requests.Response) -> Any:
+def _get_session(token: Optional[str] = None) -> requests.Session:
+    """Get a session with appropriate authorization header.
+
+    Args:
+        token: Optional token to use instead of the global TOKEN.
+               If provided, this will override the default token.
+    """
+    auth_token = token if token is not None else TOKEN
+    sess = requests.Session()
+    sess.headers.update({
+        "Authorization": auth_token,
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    })
+    return sess
+
+def _handle(r: requests.Response, token_for_redaction: Optional[str] = None) -> Any:
     """Uniform HTTP handler with token redaction."""
+    redaction_token = token_for_redaction if token_for_redaction else TOKEN
     try:
         r.raise_for_status()
     except requests.HTTPError as e:
         body = (r.text or "")[:2000]
-        redacted = body.replace(TOKEN, "***REDACTED***") if TOKEN else body
+        redacted = body.replace(redaction_token, "***REDACTED***") if redaction_token else body
         raise RuntimeError(f"Patchworks HTTP {r.status_code}: {redacted}") from e
     if not r.text:
         return None
@@ -71,15 +88,16 @@ def _handle(r: requests.Response) -> Any:
 # Flows & Flow Runs
 # ------------------------------------------------------------------------------
 
-def get_all_flows(page: int = 1, per_page: int = 50, include: Optional[str] = None) -> Any:
+def get_all_flows(page: int = 1, per_page: int = 50, include: Optional[str] = None, token: Optional[str] = None) -> Any:
     """
     GET /flows  (Core API)
     """
+    sess = _get_session(token) if token else session
     params: Dict[str, Any] = {"page": page, "per_page": per_page}
     if include:
         params["include"] = include
-    r = session.get(_url(CORE_API, "/flows"), params=params, timeout=TIMEOUT)
-    return _handle(r)
+    r = sess.get(_url(CORE_API, "/flows"), params=params, timeout=TIMEOUT)
+    return _handle(r, token)
 
 def get_flow_runs(
     status: Optional[int] = None,
@@ -87,12 +105,14 @@ def get_flow_runs(
     page: int = 1,
     per_page: int = 50,
     sort: Optional[str] = "-started_at",
-    include: Optional[str] = None
+    include: Optional[str] = None,
+    token: Optional[str] = None
 ) -> Any:
     """
     GET /flow-runs  (Core API)
     For failures: status=3
     """
+    sess = _get_session(token) if token else session
     params: Dict[str, Any] = {"page": page, "per_page": per_page}
     if sort:
         params["sort"] = sort
@@ -102,8 +122,8 @@ def get_flow_runs(
         params["filter[status]"] = status
     if started_after:
         params["filter[started_after]"] = started_after
-    r = session.get(_url(CORE_API, "/flow-runs"), params=params, timeout=TIMEOUT)
-    return _handle(r)
+    r = sess.get(_url(CORE_API, "/flow-runs"), params=params, timeout=TIMEOUT)
+    return _handle(r, token)
 
 def get_flow_run_logs(
     run_id: str,
@@ -112,11 +132,13 @@ def get_flow_run_logs(
     sort: str = "id",
     include: str = "flowRunLogMetadata",
     fields_flowStep: str = "id,name",
-    load_payload_ids: bool = True
+    load_payload_ids: bool = True,
+    token: Optional[str] = None
 ) -> Any:
     """
     GET /flow-runs/{id}/flow-run-logs  (Core API)
     """
+    sess = _get_session(token) if token else session
     params: Dict[str, Any] = {
         "per_page": per_page,
         "page": page,
@@ -125,56 +147,61 @@ def get_flow_run_logs(
         "fields[flowStep]": fields_flowStep,
         "load_payload_ids": "true" if load_payload_ids else "false",
     }
-    r = session.get(_url(CORE_API, f"/flow-runs/{run_id}/flow-run-logs"), params=params, timeout=TIMEOUT)
-    return _handle(r)
+    r = sess.get(_url(CORE_API, f"/flow-runs/{run_id}/flow-run-logs"), params=params, timeout=TIMEOUT)
+    return _handle(r, token)
 
-def download_payload(payload_metadata_id: str) -> Tuple[str, bytes]:
+def download_payload(payload_metadata_id: str, token: Optional[str] = None) -> Tuple[str, bytes]:
     """
     GET /payload-metadata/{id}/download  (Core API)
     Returns (content_type, raw_bytes)
     """
+    sess = _get_session(token) if token else session
     url = _url(CORE_API, f"/payload-metadata/{payload_metadata_id}/download")
-    r = session.get(url, timeout=TIMEOUT)
+    r = sess.get(url, timeout=TIMEOUT)
+    redaction_token = token if token else TOKEN
     try:
         r.raise_for_status()
     except requests.HTTPError as e:
         body = (r.text or "")[:1000]
-        redacted = body.replace(TOKEN, "***REDACTED***") if TOKEN else body
+        redacted = body.replace(redaction_token, "***REDACTED***") if redaction_token else body
         raise RuntimeError(f"Patchworks HTTP {r.status_code}: {redacted}") from e
     return r.headers.get("Content-Type", "application/octet-stream"), r.content
 
-def start_flow(flow_id: str, payload: Optional[Dict[str, Any]] = None) -> Any:
+def start_flow(flow_id: str, payload: Optional[Dict[str, Any]] = None, token: Optional[str] = None) -> Any:
     """
     POST /flows/{id}/start  (Start API)
     Requires PATCHWORKS_START_API = https://start.wearepatchworks.com/api/v1
     """
     if not START_API:
         raise RuntimeError("PATCHWORKS_START_API is not set; required for starting flows.")
+    sess = _get_session(token) if token else session
     body = payload or {}
-    r = session.post(_url(START_API, f"/flows/{flow_id}/start"), data=json.dumps(body), timeout=TIMEOUT)
-    return _handle(r)
+    r = sess.post(_url(START_API, f"/flows/{flow_id}/start"), data=json.dumps(body), timeout=TIMEOUT)
+    return _handle(r, token)
 
 # ------------------------------------------------------------------------------
 # Data Pools (Core API)
 # ------------------------------------------------------------------------------
 
-def list_data_pools(page: int = 1, per_page: int = 50) -> Any:
+def list_data_pools(page: int = 1, per_page: int = 50, token: Optional[str] = None) -> Any:
     """
     GET /data-pool/
     Returns a paginated list of data/dedupe pools.
     """
+    sess = _get_session(token) if token else session
     params: Dict[str, Any] = {"page": page, "per_page": per_page}
-    r = session.get(_url(CORE_API, "/data-pool/"), params=params, timeout=TIMEOUT)
-    return _handle(r)
+    r = sess.get(_url(CORE_API, "/data-pool/"), params=params, timeout=TIMEOUT)
+    return _handle(r, token)
 
-def get_deduped_data(pool_id: str, page: int = 1, per_page: int = 50) -> Any:
+def get_deduped_data(pool_id: str, page: int = 1, per_page: int = 50, token: Optional[str] = None) -> Any:
     """
     GET /data-pool/{id}/deduped-data
     Returns deduplicated data rows within the specified pool.
     """
+    sess = _get_session(token) if token else session
     params: Dict[str, Any] = {"page": page, "per_page": per_page}
-    r = session.get(_url(CORE_API, f"/data-pool/{pool_id}/deduped-data"), params=params, timeout=TIMEOUT)
-    return _handle(r)
+    r = sess.get(_url(CORE_API, f"/data-pool/{pool_id}/deduped-data"), params=params, timeout=TIMEOUT)
+    return _handle(r, token)
 
 
 # ------------------------------------------------------------------------------
@@ -188,7 +215,8 @@ def get_marketplace_apps(
     filter_name: Optional[str] = None,
     filter_allowed: Optional[bool] = None,
     filter_private: Optional[bool] = None,
-    sort: Optional[str] = None
+    sort: Optional[str] = None,
+    token: Optional[str] = None
 ) -> Any:
     """
     GET /patchworks/marketplace-apps  (Core API)
@@ -198,6 +226,7 @@ def get_marketplace_apps(
     Available includes: flowTemplates, systemTemplates, scriptTemplates, etc.
     Available sorts: name, id, created_at
     """
+    sess = _get_session(token) if token else session
     params: Dict[str, Any] = {"page": page, "per_page": per_page}
 
     if include:
@@ -211,12 +240,13 @@ def get_marketplace_apps(
     if sort:
         params["sort"] = sort
 
-    r = session.get(_url(CORE_API, "/patchworks/marketplace-apps"), params=params, timeout=TIMEOUT)
-    return _handle(r)
+    r = sess.get(_url(CORE_API, "/patchworks/marketplace-apps"), params=params, timeout=TIMEOUT)
+    return _handle(r, token)
 
 def get_marketplace_app(
     marketplace_app_id: str,
-    include: Optional[str] = None
+    include: Optional[str] = None,
+    token: Optional[str] = None
 ) -> Any:
     """
     GET /patchworks/marketplace-apps/{id}  (Core API)
@@ -224,26 +254,28 @@ def get_marketplace_app(
 
     Available includes: flowTemplates, systemTemplates, scriptTemplates, etc.
     """
+    sess = _get_session(token) if token else session
     params: Dict[str, Any] = {}
 
     if include:
         params["include"] = include
 
-    r = session.get(_url(CORE_API, f"/patchworks/marketplace-apps/{marketplace_app_id}"), params=params, timeout=TIMEOUT)
-    return _handle(r)
+    r = sess.get(_url(CORE_API, f"/patchworks/marketplace-apps/{marketplace_app_id}"), params=params, timeout=TIMEOUT)
+    return _handle(r, token)
 
 
 # ------------------------------------------------------------------------------
 # Failure triage helpers
 # ------------------------------------------------------------------------------
 
-def summarise_failed_run(run_id: str, max_logs: int = 50) -> Dict[str, Any]:
+def summarise_failed_run(run_id: str, max_logs: int = 50, token: Optional[str] = None) -> Dict[str, Any]:
     """
     Pull logs for a failed run and produce a lightweight summary from log_level/log_message.
     """
     logs = get_flow_run_logs(
         run_id, per_page=max_logs, page=1, sort="id",
-        include="flowRunLogMetadata", fields_flowStep="id,name", load_payload_ids=True
+        include="flowRunLogMetadata", fields_flowStep="id,name", load_payload_ids=True,
+        token=token
     )
     items: List[Dict[str, Any]] = logs.get("data", []) if isinstance(logs, dict) else []
 
@@ -292,7 +324,8 @@ def summarise_failed_run(run_id: str, max_logs: int = 50) -> Dict[str, Any]:
 def triage_latest_failures(
     started_after: Optional[str] = None,
     limit: int = 20,
-    per_run_log_limit: int = 50
+    per_run_log_limit: int = 50,
+    token: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Fetch recent failed flow-runs (status=3), then summarise each by inspecting log_level/log_message.
@@ -307,6 +340,7 @@ def triage_latest_failures(
         per_page=max(1, min(limit, 200)),
         sort="-started_at",
         include=None,
+        token=token
     )
 
     data = runs_resp.get("data", []) if isinstance(runs_resp, dict) else []
@@ -316,7 +350,7 @@ def triage_latest_failures(
         run_id = run.get("id")
         attrs = (run.get("attributes") or {}) if isinstance(run, dict) else {}
         try:
-            summary = summarise_failed_run(run_id, max_logs=per_run_log_limit)
+            summary = summarise_failed_run(run_id, max_logs=per_run_log_limit, token=token)
         except Exception as e:
             summary = {
                 "run_id": run_id,
@@ -347,11 +381,12 @@ def triage_latest_failures(
 # Flows: Import (POST /flows/import)
 # ------------------------------------------------------------------------------
 
-def import_flow(payload: Dict[str, Any]) -> Any:
+def import_flow(payload: Dict[str, Any], token: Optional[str] = None) -> Any:
     """
     POST /flows/import  (Core API)
     Body is the full import JSON for a flow+systems bundle.
     """
+    sess = _get_session(token) if token else session
     url = _url(CORE_API, "/flows/import")
-    r = session.post(url, data=json.dumps(payload), timeout=TIMEOUT)
-    return _handle(r)
+    r = sess.post(url, data=json.dumps(payload), timeout=TIMEOUT)
+    return _handle(r, token)

@@ -10,3 +10,4 @@ htmlcov/
 .tox/
 *.egg-info/
 .idea
+.claude
