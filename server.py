@@ -50,6 +50,4 @@ def healthz():
 
 
 if __name__ == "__main__":
-    mcp.settings.host = "0.0.0.0"
-    mcp.settings.port = 8020
-    mcp.run(transport='streamable-http')
+    mcp.run()
