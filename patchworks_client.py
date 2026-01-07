@@ -24,7 +24,7 @@ START_API = os.getenv("PATCHWORKS_START_API", "").rstrip("/")
 if not CORE_API:
     CORE_API = os.getenv("PATCHWORKS_BASE_URL", "").rstrip("/")
 
-TOKEN = os.getenv("PATCHWORKS_TOKEN", "")  # Optional - token comes from Authorization header
+TOKEN = os.getenv("PATCHWORKS_TOKEN", "1")  # Optional - token comes from Authorization header
 TIMEOUT = float(os.getenv("PATCHWORKS_TIMEOUT_SECONDS", "20"))
 
 if not CORE_API:
