@@ -10,4 +10,4 @@ htmlcov/
 .tox/
 *.egg-info/
 .idea
-.claude
+.claude__pycache__/
