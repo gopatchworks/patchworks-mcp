@@ -43,6 +43,11 @@ def list_tools() -> Any:
         "note": "For detailed parameter schemas, use the MCP protocol's built-in 'tools/list' method"
     }
 
+@mcp.get("/healthz")
+def healthz():
+    """Health check endpoint"""
+    return {"status": "ok"}
+
 
 if __name__ == "__main__":
     mcp.settings.host = "0.0.0.0"
