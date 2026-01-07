@@ -31,6 +31,7 @@ if not CORE_API:
     raise RuntimeError("Set PATCHWORKS_CORE_API (or PATCHWORKS_BASE_URL)")
 
 # TOKEN is optional - it will be passed via Authorization header from the proxy
+# Auth flow: Proxy -> Authorization: Bearer {token} -> MCP -> Patchworks API
 
 # NOTE:
 # If your gateway expects 'Bearer <token>', include 'Bearer ' in PATCHWORKS_TOKEN.
