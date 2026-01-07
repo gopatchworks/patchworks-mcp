@@ -113,4 +113,4 @@ def register_custom_tools(mcp: FastMCP):
     #     "category": "custom"
     # })
 
-    {{REPLACE_ME}}
+    # {{REPLACE_ME}}

@@ -3,6 +3,8 @@ import sys, logging, base64
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from starlette.responses import JSONResponse
+
 from defaults.tools import register_default_tools
 from custom.tools import register_custom_tools
 
@@ -43,11 +45,9 @@ def list_tools() -> Any:
         "note": "For detailed parameter schemas, use the MCP protocol's built-in 'tools/list' method"
     }
 
-@mcp.get("/healthz")
-def healthz():
-    """Health check endpoint"""
-    return {"status": "ok"}
-
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request):
+    return JSONResponse({"status": "healthy", "service": "mcp-server"})
 
 if __name__ == "__main__":
     mcp.run()
