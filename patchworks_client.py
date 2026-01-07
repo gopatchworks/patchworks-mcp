@@ -27,8 +27,10 @@ if not CORE_API:
 TOKEN = os.getenv("PATCHWORKS_TOKEN", "")
 TIMEOUT = float(os.getenv("PATCHWORKS_TIMEOUT_SECONDS", "20"))
 
-if not CORE_API or not TOKEN:
-    raise RuntimeError("Set PATCHWORKS_CORE_API (or PATCHWORKS_BASE_URL) and PATCHWORKS_TOKEN")
+if not CORE_API:
+    raise RuntimeError("Set PATCHWORKS_CORE_API (or PATCHWORKS_BASE_URL)")
+
+# TOKEN is now optional - it will be passed via Authorization header from the proxy
 
 # NOTE:
 # If your gateway expects 'Bearer <token>', include 'Bearer ' in PATCHWORKS_TOKEN.
