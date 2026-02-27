@@ -1,0 +1,603 @@
+[
+  {
+    "name": "get_all_flows",
+    "description": "List flows from the Core API.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            },
+            "per_page": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 200
+            },
+            "include": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Comma-separated includes (optional)"
+            }
+          }
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "get_flow_runs",
+    "description": "Query flow runs (filter by status, started_after; sort; includes).",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "1=STARTED, 2=SUCCESS, 3=FAILURE, 4=STOPPED, 5=PARTIAL_SUCCESS"
+            },
+            "started_after": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Timestamp or epoch-ms as string"
+            },
+            "flow_id": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Filter runs by flow ID"
+            },
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            },
+            "per_page": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 200
+            },
+            "sort": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "-started_at"
+            },
+            "include": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            }
+          }
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "get_flow_run_logs",
+    "description": "Retrieve logs for a specific flow run (optionally with payload IDs).",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "per_page": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 200
+            },
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            },
+            "sort": {
+              "type": "string",
+              "default": "id"
+            },
+            "include": {
+              "type": "string",
+              "default": "flowRunLogMetadata"
+            },
+            "fields_flowStep": {
+              "type": "string",
+              "default": "id,name"
+            },
+            "load_payload_ids": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "required": [
+            "run_id"
+          ]
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "summarise_failed_run",
+    "description": "Summarise what went wrong in a failed run by inspecting log levels/messages.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string"
+            },
+            "max_logs": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 500
+            }
+          },
+          "required": [
+            "run_id"
+          ]
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "triage_latest_failures",
+    "description": "Fetch recent failed runs and return a compact summary for each.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "started_after": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Timestamp/epoch-ms (string) to filter newer runs"
+            },
+            "limit": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 200,
+              "description": "How many failed runs to summarise"
+            },
+            "per_run_log_limit": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 500,
+              "description": "Log entries per run to fetch"
+            }
+          }
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "download_payload",
+    "description": "Download payload bytes for a given payload metadata ID (returned as base64).",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "payload_metadata_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "payload_metadata_id"
+          ]
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "start_flow",
+    "description": "Trigger a flow run via the Start service (/flows/{id}/start).",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "flow_id": {
+              "type": "string"
+            },
+            "payload": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Optional JSON payload"
+            }
+          },
+          "required": [
+            "flow_id"
+          ]
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "list_data_pools",
+    "description": "List all data/dedupe pools.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            },
+            "per_page": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "get_deduped_data",
+    "description": "Retrieve deduplicated data for a specific pool.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "pool_id": {
+              "type": "string"
+            },
+            "page": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            },
+            "per_page": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          "required": [
+            "pool_id"
+          ]
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "create_process_flow_from_prompt",
+    "description": "Build a generic flow from a natural-language prompt and import it. Produces a Try/Catch \u2192 Source Connector \u2192 Batch \u2192 Map \u2192 Destination Connector skeleton. NOTE: For reliable flow creation with full control over structure, consider using create_process_flow_from_json instead.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "e.g. 'create a process flow for Shopify to NetSuite orders'"
+            },
+            "priority": {
+              "type": "integer",
+              "default": 3,
+              "minimum": 1,
+              "maximum": 5,
+              "description": "Flow priority (1 highest)"
+            },
+            "schedule_cron": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "0 * * * *",
+              "description": "Cron schedule; set None to omit"
+            },
+            "enable": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether to enable on import"
+            }
+          },
+          "required": [
+            "prompt"
+          ]
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "create_process_flow_from_json",
+    "description": "Import a flow with the exact JSON body provided. Accepts the same structure as flow exports. REQUIRED STRUCTURE: The body must contain these top-level keys: 'metadata' (with company_name, flow_name, exported_at, exported_by, and import_summary), 'flow' (with name, description, is_enabled, and versions array containing steps and connections), 'systems' (array, can be empty), 'scripts' (array, can be empty), and 'dependencies' (array, can be empty). Each flow version must include at least one step (typically a trigger). See the flow creation documentation in the knowledge base for the complete structure.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Complete /flows/import JSON structure. Must include: metadata (with import_summary), flow (with versions containing steps array), systems (array), scripts (array), and dependencies (array). See knowledge base for minimal template example."
+            }
+          },
+          "required": [
+            "body"
+          ]
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "investigate_failure",
+    "description": "All-in-one failure investigation. Provide a flow name, flow ID, or specific run ID and this tool will: (1) resolve the flow, (2) find the most recent failed run, (3) summarise logs and errors, (4) download and decode catch-route payloads, and (5) if the payload references an originating flow run (alert/catch pattern), follow the chain, resolve its flow_id/flow_name, and summarise that originating run too. Returns originating_flow_id and originating_flow_name when an alert chain is detected — use originating_flow_id (not the alert flow's ID) when retrying. Use this as your FIRST tool when investigating any failure.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "flow_id": {
+              "anyOf": [
+                { "type": "integer" },
+                { "type": "null" }
+              ],
+              "default": null,
+              "description": "Numeric flow ID (if known)"
+            },
+            "flow_name": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "default": null,
+              "description": "Flow name to search for (case-insensitive)"
+            },
+            "run_id": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "default": null,
+              "description": "Specific flow run ID to investigate (if known)"
+            },
+            "include_payload": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include full payload content in the response. Alert chain following (resolving originating_flow_id) always happens regardless of this flag. Only enable when you need the raw payload data."
+            },
+            "failed_at": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "default": null,
+              "description": "Timestamp of the failure from the alert message (e.g. '2026-02-24 13:34:04'). When provided, matches the run closest to this timestamp instead of blindly picking the most recent run. ALWAYS extract and pass this from the Slack alert's 'Failed At' field."
+            }
+          }
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "get_run_payloads",
+    "description": "Retrieve all payloads for a flow run in a single call. Downloads and decodes each payload found in the run's logs. Optionally filter by step name (e.g. 'Catch' for the catch-route payload, 'Source Connector' for the inbound data). Use this when the user asks 'what payload did we send?' or 'show me the payload'.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "type": "object",
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "description": "Flow run ID to fetch payloads for"
+            },
+            "step_name": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "default": null,
+              "description": "Filter payloads by step name (e.g. 'Catch', 'Source Connector'). Case-insensitive partial match."
+            }
+          },
+          "required": [
+            "run_id"
+          ]
+        }
+      },
+      "required": [
+        "args"
+      ]
+    }
+  },
+  {
+    "name": "get_inventory",
+    "description": "Input schema for querying inventory. Returns inventory data for specific SKUs.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "args": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "skus": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "locationIds": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      }
+    }
+  },
+  {
+    "name": "search_docs",
+    "description": "Search the Patchworks product documentation knowledge base. Use this to answer questions about Patchworks concepts, features, and configuration that are not specific to a particular account's data. Covers: getting started, registration, subscription tiers, company setup, users & roles, marketplace, blueprints, connectors & instances, process flows, virtual environments, general settings, connector builder, custom scripting, the Patchworks API, the Patchworks MCP server, and Stockr.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Natural-language question or keywords to search the Patchworks product documentation for"
+        },
+        "max_results": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Maximum number of documentation sections to return"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  }
+]

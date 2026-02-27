@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os, json, logging, base64
+from datetime import datetime, timezone
 from typing import Any, Optional, Dict, List, Tuple
 from pathlib import Path
 
@@ -27,8 +28,26 @@ if not CORE_API:
 TOKEN = os.getenv("PATCHWORKS_TOKEN", "")
 TIMEOUT = float(os.getenv("PATCHWORKS_TIMEOUT_SECONDS", "20"))
 
+# Dashboard base URL for generating deep links to flow runs / flows.
+# e.g. https://app.wearepatchworks.com  (no trailing slash)
+DASHBOARD_URL = os.getenv("PATCHWORKS_DASHBOARD_URL", "https://app.wearepatchworks.com").rstrip("/")
+
 if not CORE_API or not TOKEN:
     raise RuntimeError("Set PATCHWORKS_CORE_API (or PATCHWORKS_BASE_URL) and PATCHWORKS_TOKEN")
+
+# Commerce Foundation callback URLs (per-operation, configured per deployment)
+CF_CALLBACK_ORDERS = os.getenv("PATCHWORKS_CALLBACK_ORDERS", "")
+CF_CALLBACK_CUSTOMERS = os.getenv("PATCHWORKS_CALLBACK_CUSTOMERS", "")
+CF_CALLBACK_PRODUCTS = os.getenv("PATCHWORKS_CALLBACK_PRODUCTS", "")
+CF_CALLBACK_PRODUCT_VARIANTS = os.getenv("PATCHWORKS_CALLBACK_PRODUCT_VARIANTS", "")
+CF_CALLBACK_INVENTORY = os.getenv("PATCHWORKS_CALLBACK_INVENTORY", "")
+CF_CALLBACK_FULFILLMENTS = os.getenv("PATCHWORKS_CALLBACK_FULFILLMENTS", "")
+CF_CALLBACK_RETURNS = os.getenv("PATCHWORKS_CALLBACK_RETURNS", "")
+CF_CALLBACK_CREATE_ORDER = os.getenv("PATCHWORKS_CALLBACK_CREATE_ORDER", "")
+CF_CALLBACK_UPDATE_ORDER = os.getenv("PATCHWORKS_CALLBACK_UPDATE_ORDER", "")
+CF_CALLBACK_CANCEL_ORDER = os.getenv("PATCHWORKS_CALLBACK_CANCEL_ORDER", "")
+CF_CALLBACK_FULFILL_ORDER = os.getenv("PATCHWORKS_CALLBACK_FULFILL_ORDER", "")
+CF_CALLBACK_CREATE_RETURN = os.getenv("PATCHWORKS_CALLBACK_CREATE_RETURN", "")
 
 # NOTE:
 # If your gateway expects 'Bearer <token>', include 'Bearer ' in PATCHWORKS_TOKEN.
@@ -84,6 +103,7 @@ def get_all_flows(page: int = 1, per_page: int = 50, include: Optional[str] = No
 def get_flow_runs(
     status: Optional[int] = None,
     started_after: Optional[str] = None,
+    flow_id: Optional[int] = None,
     page: int = 1,
     per_page: int = 50,
     sort: Optional[str] = "-started_at",
@@ -91,7 +111,7 @@ def get_flow_runs(
 ) -> Any:
     """
     GET /flow-runs  (Core API)
-    For failures: status=3
+    For failures: status=3, partial success: status=5
     """
     params: Dict[str, Any] = {"page": page, "per_page": per_page}
     if sort:
@@ -100,9 +120,22 @@ def get_flow_runs(
         params["include"] = include
     if status is not None:
         params["filter[status]"] = status
+    if flow_id is not None:
+        params["filter[flow_id]"] = flow_id
     if started_after:
         params["filter[started_after]"] = started_after
     r = session.get(_url(CORE_API, "/flow-runs"), params=params, timeout=TIMEOUT)
+    return _handle(r)
+
+def get_flow_run(run_id: str, include: Optional[str] = None) -> Any:
+    """
+    GET /flow-runs/{id}  (Core API)
+    Fetch a single flow run's metadata — useful for resolving flow_id from a run ID.
+    """
+    params: Dict[str, Any] = {}
+    if include:
+        params["include"] = include
+    r = session.get(_url(CORE_API, f"/flow-runs/{run_id}"), params=params, timeout=TIMEOUT)
     return _handle(r)
 
 def get_flow_run_logs(
@@ -147,10 +180,16 @@ def start_flow(flow_id: str, payload: Optional[Dict[str, Any]] = None) -> Any:
     """
     POST /flows/{id}/start  (Start API)
     Requires PATCHWORKS_START_API = https://start.wearepatchworks.com/api/v1
+
+    The payload (if provided) is JSON-stringified and sent as
+    {"payload": "<JSON string>"} — the Start API requires the payload
+    field to be a string, not a nested object.
     """
     if not START_API:
         raise RuntimeError("PATCHWORKS_START_API is not set; required for starting flows.")
-    body = payload or {}
+    body: Dict[str, Any] = {}
+    if payload:
+        body["payload"] = json.dumps(payload)
     r = session.post(_url(START_API, f"/flows/{flow_id}/start"), data=json.dumps(body), timeout=TIMEOUT)
     return _handle(r)
 
@@ -226,12 +265,29 @@ def summarise_failed_run(run_id: str, max_logs: int = 50) -> Dict[str, Any]:
         tail = extracted[-1]
         highlights.append(f"Last log line: [{tail.get('level')}] {tail.get('message')}")
 
+    # Collect payload metadata IDs from logs so callers know payloads are available
+    available_payloads: List[Dict[str, Any]] = []
+    for e in extracted:
+        pid = e.get("payload_metadata_id")
+        if pid:
+            available_payloads.append({
+                "payload_metadata_id": pid,
+                "flow_step_id": e.get("flow_step_id"),
+                "hint": f"Payload available — call download_payload with ID '{pid}' to retrieve it.",
+            })
+
+    # Only include ERROR/FATAL log entries (not the full log dump) to keep
+    # the tool result small and avoid blowing the token budget on follow-up turns.
+    error_logs = [e for e in extracted if e.get("level") in ("ERROR", "FATAL")]
+
     return {
         "run_id": run_id,
+        "run_log_url": _run_log_url(run_id),
         "levels": levels,
         "log_count": len(extracted),
         "highlights": highlights,
-        "logs": extracted,  # caller can render/inspect
+        "available_payloads": available_payloads,
+        "error_logs": error_logs,
     }
 
 def triage_latest_failures(
@@ -303,167 +359,425 @@ def import_flow(payload: Dict[str, Any]) -> Any:
 
 
 # ------------------------------------------------------------------------------
-# Commerce Operations Foundation - Query Tools
-# Configure in the callback flow URL for your specific account implementation
+# Composite / high-level investigation helpers
+# ------------------------------------------------------------------------------
+
+def _run_log_url(run_id: str) -> str:
+    """Build a dashboard deep-link to a flow run's log page."""
+    return f"{DASHBOARD_URL}/flow-run-logs/{run_id}"
+
+
+# Maximum number of payloads to download inside investigate_failure to keep
+# total execution time short (each download is a blocking HTTP call).
+_MAX_PAYLOAD_DOWNLOADS = 2
+
+
+def _parse_ts(value: str) -> Optional[datetime]:
+    """Best-effort parse of a timestamp string into a UTC datetime."""
+    if not value:
+        return None
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S.%fZ",   # ISO-8601 with fractional seconds
+        "%Y-%m-%dT%H:%M:%SZ",       # ISO-8601
+        "%Y-%m-%dT%H:%M:%S.%f",     # without Z
+        "%Y-%m-%dT%H:%M:%S",        # without Z
+        "%Y-%m-%d %H:%M:%S",        # human-friendly (from Slack alert)
+    ):
+        try:
+            return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
+def _best_run_by_timestamp(
+    runs: List[Dict[str, Any]], target: datetime,
+) -> Optional[Dict[str, Any]]:
+    """
+    Pick the run whose started_at or finished_at is closest to *target*.
+    Returns the best-matching run dict, or None if runs is empty.
+    """
+    best_run = None
+    best_delta = None
+    for run in runs:
+        attrs = run.get("attributes", {}) if isinstance(run, dict) else {}
+        for ts_field in ("finished_at", "started_at"):
+            ts_val = attrs.get(ts_field)
+            if not ts_val:
+                continue
+            parsed = _parse_ts(str(ts_val))
+            if not parsed:
+                continue
+            delta = abs((parsed - target).total_seconds())
+            if best_delta is None or delta < best_delta:
+                best_delta = delta
+                best_run = run
+    return best_run
+
+
+def investigate_failure(
+    flow_id: Optional[int] = None,
+    flow_name: Optional[str] = None,
+    run_id: Optional[str] = None,
+    include_payload: bool = False,
+    failed_at: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    All-in-one failure investigation.  Accepts a flow name/ID or a specific run ID.
+    Steps:
+      1. If only flow_name given, resolve to flow_id via get_all_flows.
+      2. Find the most recent failed run for that flow (or use the given run_id).
+         If *failed_at* is supplied (ISO-8601 or "YYYY-MM-DD HH:MM:SS"), match the
+         run whose started_at/finished_at is closest to that timestamp — this ensures
+         we investigate the exact run the alert refers to.
+      3. Summarise the failed run (logs, errors, highlights).
+      4. Download catch-route payloads to follow the alert chain (always) and
+         include full payload data in the result only if include_payload is True.
+    Returns a rich diagnostic object in a single tool call.
+    """
+    result: Dict[str, Any] = {"flow_id": flow_id, "flow_name": flow_name}
+
+    # -- Step 1: resolve flow_name → flow_id if needed -------------------------
+    if flow_name and not flow_id:
+        page = 1
+        found = False
+        while not found:
+            flows_resp = get_all_flows(page=page, per_page=200)
+            data = flows_resp.get("data", []) if isinstance(flows_resp, dict) else []
+            if not data:
+                break
+            for f in data:
+                attrs = f.get("attributes", {}) if isinstance(f, dict) else {}
+                name = attrs.get("name", "")
+                if name.lower() == flow_name.lower():
+                    flow_id = f.get("id")
+                    result["flow_id"] = flow_id
+                    result["flow_name"] = name
+                    result["flow_enabled"] = attrs.get("is_enabled")
+                    found = True
+                    break
+            meta = flows_resp.get("meta", {})
+            if page >= meta.get("last_page", page):
+                break
+            page += 1
+
+        if not flow_id:
+            result["error"] = f"Could not find a flow named '{flow_name}'."
+            return result
+
+    # -- Step 2: find the correct problematic run ---------------------------------
+    # Try/Catch flows are tricky: the Odoo call can fail with a 422 but the
+    # overall run finishes as SUCCESS (2) because the catch branch handled it
+    # (e.g. sent a Slack alert).  So we MUST also consider SUCCESS runs when
+    # a timestamp is provided — it's the only way to find the right one.
+    #
+    # Strategy:
+    #   A. When failed_at IS provided → search ALL statuses (3, 5, 2, 1) and
+    #      pick the run closest to that timestamp.
+    #   B. When failed_at is NOT provided → search only 3 and 5 (the old
+    #      behaviour) so we don't surface random successful runs.
+    target_ts = _parse_ts(failed_at) if failed_at else None
+
+    if not run_id:
+        # Choose which statuses to search based on whether we have a timestamp
+        statuses_to_search = (3, 5, 2, 1) if target_ts else (3, 5)
+
+        candidate_runs: List[Dict[str, Any]] = []
+        for search_status in statuses_to_search:
+            runs_resp = get_flow_runs(
+                status=search_status, flow_id=flow_id,
+                page=1, per_page=10, sort="-started_at",
+            )
+            data = runs_resp.get("data", []) if isinstance(runs_resp, dict) else []
+            candidate_runs.extend(data)
+
+        if candidate_runs:
+            if target_ts:
+                # Timestamp-match: pick the run closest to the alert's timestamp
+                run = _best_run_by_timestamp(candidate_runs, target_ts)
+            else:
+                # No timestamp — fall back to most recent (sorted by started_at desc)
+                run = candidate_runs[0]
+
+            if run:
+                attrs = run.get("attributes", {}) if isinstance(run, dict) else {}
+                run_id = run.get("id")
+                result["run_status"] = attrs.get("status")
+                result["run_started_at"] = attrs.get("started_at")
+                result["run_finished_at"] = attrs.get("finished_at")
+
+        if not run_id:
+            # Widen the search — look for any recent run (no status filter).
+            runs_resp2 = get_flow_runs(
+                flow_id=flow_id, page=1, per_page=10, sort="-started_at",
+            )
+            data2 = runs_resp2.get("data", []) if isinstance(runs_resp2, dict) else []
+            if data2:
+                if target_ts:
+                    run = _best_run_by_timestamp(data2, target_ts)
+                else:
+                    run = data2[0]
+                if run:
+                    attrs = run.get("attributes", {}) if isinstance(run, dict) else {}
+                    run_id = run.get("id")
+                    result["run_status"] = attrs.get("status")
+                    result["run_started_at"] = attrs.get("started_at")
+                    result["note"] = "No failed/partial-success run found; using closest matching run instead."
+
+        if not run_id:
+            result["error"] = f"No recent runs found for flow_id={flow_id}."
+            return result
+
+    result["run_id"] = run_id
+    result["run_log_url"] = _run_log_url(run_id)
+
+    # -- Step 3: summarise the run ----------------------------------------------
+    try:
+        summary = summarise_failed_run(run_id, max_logs=50)
+        result["summary"] = summary
+    except Exception as e:
+        result["summary_error"] = str(e)
+        return result
+
+    # -- Step 4: follow the alert/catch chain -----------------------------------
+    # ALWAYS attempt to follow the chain by downloading the first payload to
+    # look for an originating run ID.  Alert/catch flows won't have useful error
+    # detail themselves — the real error is in the originating run.
+    # The `include_payload` flag only controls whether full payload data is
+    # included in the response (which costs tokens).
+    originating_run_id = None
+    payloads_decoded: List[Dict[str, Any]] = []
+
+    if summary.get("available_payloads"):
+        for p_info in summary["available_payloads"][:_MAX_PAYLOAD_DOWNLOADS]:
+            pid = p_info.get("payload_metadata_id")
+            if not pid:
+                continue
+            try:
+                ctype, raw = download_payload(pid)
+                decoded: Any = None
+                if "json" in ctype.lower():
+                    try:
+                        decoded = json.loads(raw)
+                    except Exception:
+                        decoded = raw.decode("utf-8", errors="replace")
+                else:
+                    decoded = raw.decode("utf-8", errors="replace")
+
+                if include_payload:
+                    payloads_decoded.append({
+                        "payload_metadata_id": pid,
+                        "flow_step_id": p_info.get("flow_step_id"),
+                        "content_type": ctype,
+                        "data": decoded,
+                    })
+
+                # Look for a reference to an originating flow run ID in the payload
+                if isinstance(decoded, dict) and not originating_run_id:
+                    for key in ("flow_run_id", "run_id", "original_run_id",
+                                "source_run_id", "flowRunId"):
+                        if decoded.get(key):
+                            originating_run_id = str(decoded[key])
+                            break
+                    # Also check nested structures (one level deep)
+                    if not originating_run_id:
+                        for val in decoded.values():
+                            if isinstance(val, dict):
+                                for key in ("flow_run_id", "run_id", "original_run_id",
+                                            "source_run_id", "flowRunId"):
+                                    if val.get(key):
+                                        originating_run_id = str(val[key])
+                                        break
+                            if originating_run_id:
+                                break
+
+                # Stop downloading more payloads once we've found an originating run
+                if originating_run_id:
+                    break
+
+            except Exception as e:
+                if include_payload:
+                    payloads_decoded.append({
+                        "payload_metadata_id": pid,
+                        "error": str(e),
+                    })
+
+    if include_payload and payloads_decoded:
+        result["payloads"] = payloads_decoded
+
+    # If we found an originating run, summarise it — this is the REAL failure
+    if originating_run_id and originating_run_id != run_id:
+        result["originating_run_id"] = originating_run_id
+        result["originating_run_log_url"] = _run_log_url(originating_run_id)
+
+        # Fetch the originating run's metadata to get its flow_id and flow_name
+        # so the model knows which flow to retry.
+        try:
+            orig_run_resp = get_flow_run(originating_run_id)
+            orig_run_data = orig_run_resp.get("data", {}) if isinstance(orig_run_resp, dict) else {}
+            orig_attrs = orig_run_data.get("attributes", {}) if isinstance(orig_run_data, dict) else {}
+
+            # flow_id may be in attributes or relationships
+            orig_flow_id = orig_attrs.get("flow_id")
+            if not orig_flow_id:
+                rels = orig_run_data.get("relationships", {}) if isinstance(orig_run_data, dict) else {}
+                flow_rel = rels.get("flow", {}).get("data", {})
+                if isinstance(flow_rel, dict):
+                    orig_flow_id = flow_rel.get("id")
+
+            if orig_flow_id:
+                result["originating_flow_id"] = orig_flow_id
+
+            orig_flow_name = orig_attrs.get("flow_name") or orig_attrs.get("name")
+            if orig_flow_name:
+                result["originating_flow_name"] = orig_flow_name
+
+            result["originating_run_started_at"] = orig_attrs.get("started_at")
+            result["originating_run_status"] = orig_attrs.get("status")
+        except Exception:
+            pass  # Non-critical — we still have the run ID and log URL
+
+        try:
+            orig_summary = summarise_failed_run(originating_run_id, max_logs=50)
+            result["originating_run_summary"] = orig_summary
+
+            # Build an informative note with the originating flow ID for retrying
+            note_parts = [
+                f"This is an alert/catch flow. The actual failure occurred in "
+                f"run {originating_run_id}."
+            ]
+            if result.get("originating_flow_id"):
+                note_parts.append(
+                    f"To retry, use start_flow with flow_id='{result['originating_flow_id']}' "
+                    f"(NOT the alert flow)."
+                )
+            note_parts.append(f"See: {_run_log_url(originating_run_id)}")
+            result["note"] = " ".join(note_parts)
+        except Exception as e:
+            result["originating_run_summary_error"] = str(e)
+
+    return result
+
+
+def get_run_payloads(
+    run_id: str,
+    step_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Fetch all payloads for a given flow run in a single call.
+    Optionally filter by step_name (e.g. 'Catch', 'Try/Catch', 'Source Connector').
+    Returns decoded payload content for each payload found in the run logs.
+    """
+    logs_resp = get_flow_run_logs(
+        run_id=run_id, per_page=200, page=1, sort="id",
+        include="flowRunLogMetadata", fields_flowStep="id,name",
+        load_payload_ids=True,
+    )
+    items = logs_resp.get("data", []) if isinstance(logs_resp, dict) else []
+
+    payload_entries: List[Dict[str, Any]] = []
+    seen_ids: set = set()
+
+    for item in items:
+        attrs = item.get("attributes", {}) if isinstance(item, dict) else {}
+        pid = attrs.get("payload_metadata_id")
+        if not pid or pid in seen_ids:
+            continue
+
+        # If step_name filter is set, check the flow step name
+        if step_name:
+            step_info = attrs.get("flow_step", {}) or {}
+            sname = step_info.get("name", "") or attrs.get("flow_step_name", "")
+            if step_name.lower() not in sname.lower():
+                continue
+
+        seen_ids.add(pid)
+        entry: Dict[str, Any] = {
+            "payload_metadata_id": pid,
+            "log_message": attrs.get("log_message") or attrs.get("message"),
+            "flow_step_id": attrs.get("flow_step_id"),
+        }
+
+        try:
+            ctype, raw = download_payload(pid)
+            if "json" in ctype.lower():
+                try:
+                    entry["data"] = json.loads(raw)
+                except Exception:
+                    entry["data"] = raw.decode("utf-8", errors="replace")
+            else:
+                entry["data"] = raw.decode("utf-8", errors="replace")
+            entry["content_type"] = ctype
+        except Exception as e:
+            entry["error"] = str(e)
+
+        payload_entries.append(entry)
+
+    return {
+        "run_id": run_id,
+        "step_filter": step_name,
+        "payload_count": len(payload_entries),
+        "payloads": payload_entries,
+    }
+
+
+# ------------------------------------------------------------------------------
+# Commerce Foundation helpers
+# ------------------------------------------------------------------------------
+
+def _cf_post(callback_url: str, operation_name: str, inputSchema: Optional[str] = None) -> Any:
+    """Post to a Commerce Foundation callback URL."""
+    if not callback_url:
+        raise RuntimeError(
+            f"No callback URL configured for '{operation_name}'. "
+            f"Set the corresponding PATCHWORKS_CALLBACK_* environment variable."
+        )
+    body = {}
+    if inputSchema:
+        body["inputSchema"] = inputSchema
+    r = session.post(callback_url, data=json.dumps(body), timeout=TIMEOUT)
+    return _handle(r)
+
+# ------------------------------------------------------------------------------
+# Commerce Foundation - Query Tools
 # ------------------------------------------------------------------------------
 
 def get_orders(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
+    return _cf_post(CF_CALLBACK_ORDERS, "get_orders", inputSchema)
 
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)
-    
 def get_customers(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
+    return _cf_post(CF_CALLBACK_CUSTOMERS, "get_customers", inputSchema)
 
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)
-        
 def get_products(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
+    return _cf_post(CF_CALLBACK_PRODUCTS, "get_products", inputSchema)
 
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)
-      
 def get_product_variants(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
-
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)  
+    return _cf_post(CF_CALLBACK_PRODUCT_VARIANTS, "get_product_variants", inputSchema)
 
 def get_inventory(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
+    return _cf_post(CF_CALLBACK_INVENTORY, "get_inventory", inputSchema)
 
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "https://callbacks.wearepatchworks.com/api/v1/jim_sandbox/01kae1cxrmdvphywp405v12pfn/2?patchworks_signature=f1pdveppf50prh2makkc5vhyr121wp010wyvcxd01qpp4av1xm4e",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)
-    
 def get_fulfillments(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
+    return _cf_post(CF_CALLBACK_FULFILLMENTS, "get_fulfillments", inputSchema)
 
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)      
-    
 def get_returns(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
-
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)      
+    return _cf_post(CF_CALLBACK_RETURNS, "get_returns", inputSchema)
 
 # ------------------------------------------------------------------------------
-# Commerce Operations Foundation - Action Tools
-# Configure in the callback flow URL for your specific account implementation
+# Commerce Foundation - Action Tools
 # ------------------------------------------------------------------------------
 
-def create_sales_order(inputSchema) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
+def create_sales_order(inputSchema: Optional[str] = None) -> Any:
+    return _cf_post(CF_CALLBACK_CREATE_ORDER, "create_sales_order", inputSchema)
 
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)      
-    
 def update_order(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
-
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)      
+    return _cf_post(CF_CALLBACK_UPDATE_ORDER, "update_order", inputSchema)
 
 def cancel_order(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
-
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)      
+    return _cf_post(CF_CALLBACK_CANCEL_ORDER, "cancel_order", inputSchema)
 
 def fulfill_order(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
+    return _cf_post(CF_CALLBACK_FULFILL_ORDER, "fulfill_order", inputSchema)
 
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)      
-    
 def create_return(inputSchema: Optional[str] = None) -> Any:
-    body = {}
-    if inputSchema:
-        body["inputSchema"] = inputSchema
-
-#   Configure in the callback flow URL here in the quotes under session.post
-    r = session.post(
-        "",
-        data=json.dumps(body),
-        timeout=TIMEOUT
-    )
-    return _handle(r)      
+    return _cf_post(CF_CALLBACK_CREATE_RETURN, "create_return", inputSchema)      

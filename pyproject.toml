@@ -6,5 +6,8 @@ dependencies = [
   "mcp[cli]>=0.1.0",
   "pydantic>=2.7",
   "python-dotenv>=1.0",
-  "requests>=2.32"
+  "requests>=2.32",
+  "anthropic>=0.42.0",
+  "openai>=1.0",
+  "google-genai>=1.0",
 ]
