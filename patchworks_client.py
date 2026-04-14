@@ -289,20 +289,6 @@ def triage_latest_failures(
     }
 
 # ------------------------------------------------------------------------------
-# Flows: Import (POST /flows/import)
-# ------------------------------------------------------------------------------
-
-def import_flow(payload: Dict[str, Any]) -> Any:
-    """
-    POST /flows/import  (Core API)
-    Body is the full import JSON for a flow+systems bundle.
-    """
-    url = _url(CORE_API, "/flows/import")
-    r = session.post(url, data=json.dumps(payload), timeout=TIMEOUT)
-    return _handle(r)
-
-
-# ------------------------------------------------------------------------------
 # Commerce Operations Foundation - Query Tools
 # Configure in the callback flow URL for your specific account implementation
 # ------------------------------------------------------------------------------
