@@ -74,7 +74,31 @@ class ListDataPoolsArgs(BaseModel):
 class GetDedupedDataArgs(BaseModel):
     pool_id: str
     page: int = Field(1, ge=1)
-    per_page: int = Field(50, ge=1, le=200)  
+    per_page: int = Field(50, ge=1, le=200)
+
+class ListAgentConversationsArgs(BaseModel):
+    page: int = Field(1, ge=1, description="Page number to retrieve")
+    per_page: int = Field(50, ge=1, le=200, description="Number of items per page")
+    include: Optional[str] = Field(None, description="Comma-separated includes (optional)")
+
+class CreateAgentConversationArgs(BaseModel):
+    feature: str = Field(..., description="Feature context: 'flow-builder' or 'map-builder'")
+    prompt: str = Field(..., description="Initial prompt to start the conversation")
+    payload: Optional[Dict[str, Any]] = Field(
+        None,
+        description=(
+            "Feature-specific payload. "
+            "flow-builder: { flow_id?: int }. "
+            "map-builder: { flow_step_id: int, flow_version_id: int, flow_id: int }."
+        ),
+    )
+
+class GetAgentConversationArgs(BaseModel):
+    conversation_id: str = Field(..., description="ID of the agent conversation to retrieve")
+
+class ReplyToAgentConversationArgs(BaseModel):
+    conversation_id: str = Field(..., description="ID of the conversation to reply to")
+    message: str = Field(..., description="The prompt/message to send as a reply")
 
 
 # ------------------------------------------------------------------------------
@@ -146,6 +170,38 @@ def list_data_pools(args: ListDataPoolsArgs) -> Any:
 def get_deduped_data(args: GetDedupedDataArgs) -> Any:
     """Retrieve deduplicated data for a specific pool."""
     return pw.get_deduped_data(pool_id=args.pool_id, page=args.page, per_page=args.per_page)
+
+
+# ------------------------------------------------------------------------------
+# Agent Conversation Tools
+# ------------------------------------------------------------------------------
+
+@mcp.tool()
+def list_agent_conversations(args: ListAgentConversationsArgs) -> Any:
+    """List all agent conversations."""
+    return pw.list_agent_conversations(page=args.page, per_page=args.per_page, include=args.include)
+
+@mcp.tool()
+def create_agent_conversation(args: CreateAgentConversationArgs) -> Any:
+    """Create a new agent conversation for a given feature (flow-builder or map-builder)."""
+    return pw.create_agent_conversation(
+        feature=args.feature,
+        prompt=args.prompt,
+        payload=args.payload,
+    )
+
+@mcp.tool()
+def get_agent_conversation(args: GetAgentConversationArgs) -> Any:
+    """Get a specific agent conversation by ID."""
+    return pw.get_agent_conversation(conversation_id=args.conversation_id)
+
+@mcp.tool()
+def reply_to_agent_conversation(args: ReplyToAgentConversationArgs) -> Any:
+    """Reply to an existing agent conversation."""
+    return pw.reply_to_agent_conversation(
+        conversation_id=args.conversation_id,
+        message=args.message,
+    )
 
 
 # ------------------------------------------------------------------------------
