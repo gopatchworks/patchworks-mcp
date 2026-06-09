@@ -289,6 +289,56 @@ def triage_latest_failures(
     }
 
 # ------------------------------------------------------------------------------
+# Agent Conversations
+# ------------------------------------------------------------------------------
+
+def list_agent_conversations(page: int = 1, per_page: int = 50, include: Optional[str] = None) -> Any:
+    """
+    GET /agents/conversations  (Core API)
+    """
+    params: Dict[str, Any] = {"page": page, "per_page": per_page}
+    if include:
+        params["include"] = include
+    r = session.get(_url(CORE_API, "/agents/conversations"), params=params, timeout=TIMEOUT)
+    return _handle(r)
+
+
+def create_agent_conversation(feature: str, prompt: str, payload: Optional[Dict[str, Any]] = None) -> Any:
+    """
+    POST /agents/conversations  (Core API)
+    feature: 'flow-builder' or 'map-builder'
+    payload for flow-builder: { flow_id?: int }
+    payload for map-builder: { flow_step_id: int, flow_version_id: int, flow_id: int }
+    """
+    body: Dict[str, Any] = {"feature": feature, "prompt": prompt}
+    if payload is not None:
+        body["payload"] = payload
+    r = session.post(_url(CORE_API, "/agents/conversations"), data=json.dumps(body), timeout=TIMEOUT)
+    return _handle(r)
+
+
+def get_agent_conversation(conversation_id: str) -> Any:
+    """
+    GET /agents/conversations/{conversation_id}  (Core API)
+    """
+    r = session.get(_url(CORE_API, f"/agents/conversations/{conversation_id}"), timeout=TIMEOUT)
+    return _handle(r)
+
+
+def reply_to_agent_conversation(conversation_id: str, message: str) -> Any:
+    """
+    POST /agents/conversations/{conversation_id}/reply  (Core API)
+    """
+    body: Dict[str, Any] = {"message": message}
+    r = session.post(
+        _url(CORE_API, f"/agents/conversations/{conversation_id}/reply"),
+        data=json.dumps(body),
+        timeout=TIMEOUT,
+    )
+    return _handle(r)
+
+
+# ------------------------------------------------------------------------------
 # Commerce Operations Foundation - Query Tools
 # Configure in the callback flow URL for your specific account implementation
 # ------------------------------------------------------------------------------
