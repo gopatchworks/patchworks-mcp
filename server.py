@@ -82,14 +82,15 @@ class ListAgentConversationsArgs(BaseModel):
     include: Optional[str] = Field(None, description="Comma-separated includes (optional)")
 
 class CreateAgentConversationArgs(BaseModel):
-    feature: str = Field(..., description="Feature context: 'flow-builder' or 'map-builder'")
+    feature: str = Field(..., description="Feature context: 'flow-builder', 'map-builder', or 'connector-builder'")
     prompt: str = Field(..., description="Initial prompt to start the conversation")
     payload: Optional[Dict[str, Any]] = Field(
         None,
         description=(
             "Feature-specific payload. "
             "flow-builder: { flow_id?: int }. "
-            "map-builder: { flow_step_id: int, flow_version_id: int, flow_id: int }."
+            "map-builder: { flow_step_id: int, flow_version_id: int, flow_id: int }. "
+            "connector-builder: {} (no required fields; optionally pass { connector_id?: int } to continue building an existing connector)."
         ),
     )
 
