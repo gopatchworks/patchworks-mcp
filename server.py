@@ -183,7 +183,7 @@ def list_agent_conversations(args: ListAgentConversationsArgs) -> Any:
 
 @mcp.tool()
 def create_agent_conversation(args: CreateAgentConversationArgs) -> Any:
-    """Create a new agent conversation for a given feature (flow-builder or map-builder)."""
+    """Create a new agent conversation for a given feature (flow-builder, map-builder, or connector-builder)."""
     return pw.create_agent_conversation(
         feature=args.feature,
         prompt=args.prompt,
