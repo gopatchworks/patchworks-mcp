@@ -143,17 +143,41 @@ def download_payload(payload_metadata_id: str) -> Tuple[str, bytes]:
         raise RuntimeError(f"Patchworks HTTP {r.status_code}: {redacted}") from e
     return r.headers.get("Content-Type", "application/octet-stream"), r.content
 
-def start_flow(flow_id: str, payload: Optional[Dict[str, Any]] = None) -> Any:
+def start_flow(
+    flow_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    version_id: Optional[str] = None,
+    virtual_environment_id: Optional[str] = None,
+    flow_variables: Optional[Dict[str, Any]] = None,
+) -> Any:
     """
-    POST /flows/{id}/start  (Start API)
+    POST /flows/{flow_id}/start/raw/{version_id}  (Start API, raw variant)
     Requires PATCHWORKS_START_API = https://start.wearepatchworks.com/api/v1
+
+    - version_id: optional; defaults to the flow's latest deployed version if omitted.
+    - virtual_environment_id: optional; selects which environment to run in.
+    - payload: passed directly as the JSON request body (no wrapping "payload" field).
     """
     if not START_API:
         raise RuntimeError("PATCHWORKS_START_API is not set; required for starting flows.")
-    body: Dict[str, Any] = {}
-    if payload is not None:
-        body["payload"] = json.dumps(payload)
-    r = session.post(_url(START_API, f"/flows/{flow_id}/start"), data=json.dumps(body), timeout=TIMEOUT)
+
+    path = f"/flows/{flow_id}/start/raw"
+    if version_id:
+        path += f"/{version_id}"
+
+    params: Dict[str, Any] = {}
+    if virtual_environment_id is not None:
+        params["virtual_environment_id"] = virtual_environment_id
+    if flow_variables is not None:
+        params["flow_variables"] = json.dumps(flow_variables)
+
+    r = session.post(
+        _url(START_API, path),
+        params=params,
+        data=json.dumps(payload) if payload is not None else None,
+        headers={"Content-Type": "application/json"},
+        timeout=TIMEOUT,
+    )
     return _handle(r)
 
 
