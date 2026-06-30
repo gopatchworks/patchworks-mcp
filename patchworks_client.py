@@ -150,7 +150,9 @@ def start_flow(flow_id: str, payload: Optional[Dict[str, Any]] = None) -> Any:
     """
     if not START_API:
         raise RuntimeError("PATCHWORKS_START_API is not set; required for starting flows.")
-    body = payload or {}
+    body: Dict[str, Any] = {}
+    if payload is not None:
+        body["payload"] = json.dumps(payload)
     r = session.post(_url(START_API, f"/flows/{flow_id}/start"), data=json.dumps(body), timeout=TIMEOUT)
     return _handle(r)
 
