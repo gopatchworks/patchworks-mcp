@@ -332,9 +332,15 @@ def list_agent_conversations(page: int = 1, per_page: int = 50, include: Optiona
 def create_agent_conversation(feature: str, prompt: str, payload: Optional[Dict[str, Any]] = None) -> Any:
     """
     POST /agents/conversations  (Core API)
-    feature: 'flow-builder' or 'map-builder'
+    feature: 'assistant', 'implementation-agent', 'connector-builder', 'flow-builder', 'map-builder', 'answers-agent', 'documentation-agent' or 'health-monitor'
+    payload for assistant: {}
+    payload for implementation-agent: {}
+    payload for connector-builder: {} (no required fields; optionally pass { connector_id?: int } to continue building an existing connector).
     payload for flow-builder: { flow_id?: int }
     payload for map-builder: { flow_step_id: int, flow_version_id: int, flow_id: int }
+    payload for answers-agent: {}
+    payload for documentation-agent: { flow_id?: int }
+    payload for health-monitor: { flow_run_id?: string, flow_id?: int }
     """
     body: Dict[str, Any] = {"feature": feature, "prompt": prompt}
     if payload is not None:
