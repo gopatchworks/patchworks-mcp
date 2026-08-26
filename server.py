@@ -82,15 +82,20 @@ class ListAgentConversationsArgs(BaseModel):
     include: Optional[str] = Field(None, description="Comma-separated includes (optional)")
 
 class CreateAgentConversationArgs(BaseModel):
-    feature: str = Field(..., description="Feature context: 'flow-builder', 'map-builder', or 'connector-builder'")
+    feature: str = Field(..., description="Feature context: 'assistant', 'implementation-agent', 'connector-builder', 'flow-builder', 'map-builder', 'answers-agent', 'documentation-agent' or 'health-monitor'")
     prompt: str = Field(..., description="Initial prompt to start the conversation")
     payload: Optional[Dict[str, Any]] = Field(
         None,
         description=(
             "Feature-specific payload. "
+            "assistant: {}. "
+            "implementation-agent: {}. "
+            "connector-builder: {} (no required fields; optionally pass { connector_id?: int } to continue building an existing connector)."
             "flow-builder: { flow_id?: int }. "
             "map-builder: { flow_step_id: int, flow_version_id: int, flow_id: int }. "
-            "connector-builder: {} (no required fields; optionally pass { connector_id?: int } to continue building an existing connector)."
+            "answers-agent: {}. "
+            "documentation-agent: { flow_id?: int }. "
+            "health-monitor: { flow_run_id?: string, flow_id?: int }. "
         ),
     )
 
@@ -184,7 +189,7 @@ def list_agent_conversations(args: ListAgentConversationsArgs) -> Any:
 
 @mcp.tool()
 def create_agent_conversation(args: CreateAgentConversationArgs) -> Any:
-    """Create a new agent conversation for a given feature (flow-builder, map-builder, or connector-builder)."""
+    """Create a new agent conversation for a given feature (assistant, implementation-agent, connector-builder, flow-builder, map-builder, answers-agent, documentation-agent or health-monitor)."""
     return pw.create_agent_conversation(
         feature=args.feature,
         prompt=args.prompt,
