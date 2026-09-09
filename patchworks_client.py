@@ -336,8 +336,9 @@ def create_agent_conversation(feature: str, prompt: str, payload: Optional[Dict[
     payload for assistant: {}
     payload for implementation-agent: {}
     payload for connector-builder: {} (no required fields; optionally pass { connector_id?: int } to continue building an existing connector).
-    payload for flow-builder: { flow_id?: int }
-    payload for map-builder: { flow_step_id: int, flow_version_id: int, flow_id: int }
+    payload for flow-builder: { flow_id: int } - required; the flow builder only edits one existing
+        flow, so use implementation-agent to create a new one.
+    payload for map-builder: { flow_step_id: int, flow_version_id: int, flow_id: int } - flow_step_id is required
     payload for answers-agent: {}
     payload for documentation-agent: { flow_id?: int }
     payload for health-monitor: { flow_run_id?: string, flow_id?: int }
